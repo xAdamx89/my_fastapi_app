@@ -9,6 +9,8 @@ export default function AdminPanel() {
 
   const handleLogin = (e) => {
     e.preventDefault();
+
+    // Prosty przykład: sprawdzanie loginu i hasła na sztywno
     if (login === 'admin' && password === 'haslo123') {
       navigate('/admin/dashboard');
     } else {
@@ -17,37 +19,40 @@ export default function AdminPanel() {
   };
 
   return (
-    <div className="row">
-      <div className="column" />
-      
-      <div className="column center-column">
-        <button className="back-button" onClick={() => navigate('/')}>
-          Powróć do kalendarza
-        </button>
-
-        <div className="login-box">
+    <div className="column">
+      <button className="to-left" onClick={() => navigate('/')}>
+        Powróć do kalendarza
+      </button>
+      <div>
+        <div className="centered">
           <h2>Logowanie do panelu admina</h2>
           <form onSubmit={handleLogin}>
-            <input
-              type="text"
-              placeholder="Login"
-              value={login}
-              onChange={(e) => setLogin(e.target.value)}
-              required
-            />
-            <input
-              type="password"
-              placeholder="Hasło"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <button type="submit">Zaloguj</button>
+            <div style={{ marginBottom: '10px' }}>
+              <input
+                type="text"
+                placeholder="Login"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                style={{ width: '100%', padding: '8px' }}
+                required
+              />
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <input
+                type="password"
+                placeholder="Hasło"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ width: '100%', padding: '8px' }}
+                required
+              />
+            </div>
+            <button type="submit" style={{ padding: '8px 16px' }}>
+              Zaloguj
+            </button>
           </form>
         </div>
       </div>
-
-      <div className="column" />
     </div>
   );
 }
