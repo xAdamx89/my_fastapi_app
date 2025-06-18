@@ -7,7 +7,8 @@ export default function AdminDashboard() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    date: '',
+    start: '',
+    koniec: '',
   });
   const [editingId, setEditingId] = useState(null); // ID aktualnie edytowanej rezerwacji
 
@@ -46,7 +47,7 @@ export default function AdminDashboard() {
         .then(() => {
           fetchReservations();
           setEditingId(null);
-          setFormData({ name: '', email: '', date: '' });
+          setFormData({ name: '', email: '', start: '', koniec: '' });
         })
         .catch((err) => console.error('Błąd edycji:', err));
     } else {
@@ -59,24 +60,35 @@ export default function AdminDashboard() {
         .then((res) => res.json())
         .then(() => {
           fetchReservations();
-          setFormData({ name: '', email: '', date: '' });
+          setFormData({ name: '', email: '', start: '', koniec: '' });
         })
         .catch((err) => console.error('Błąd dodawania:', err));
     }
   };
 
+  // Rozbierz ISO datetime na format akceptowany przez input[type=datetime-local]
+  const toLocalDateTime = (isoString) => {
+    if (!isoString) return '';
+    const dt = new Date(isoString);
+    const off = dt.getTimezoneOffset();
+    const localDate = new Date(dt.getTime() - off * 60000);
+    return localDate.toISOString().slice(0, 16);
+  };
+
+  // Start edycji - wypełnij formę z przekształceniem dat
   const startEdit = (res) => {
     setEditingId(res.id);
     setFormData({
       name: res.name,
       email: res.email,
-      date: res.date,
+      start: toLocalDateTime(res.start),
+      koniec: toLocalDateTime(res.koniec),
     });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setFormData({ name: '', email: '', date: '' });
+    setFormData({ name: '', email: '', start: '', koniec: '' });
   };
 
   return (
@@ -101,12 +113,24 @@ export default function AdminDashboard() {
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
           required
         />
-        <input
-          type="date"
-          value={formData.date}
-          onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-          required
-        />
+        <label>
+          Start:
+          <input
+            type="datetime-local"
+            value={formData.start}
+            onChange={(e) => setFormData({ ...formData, start: e.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Koniec:
+          <input
+            type="datetime-local"
+            value={formData.koniec}
+            onChange={(e) => setFormData({ ...formData, koniec: e.target.value })}
+            required
+          />
+        </label>
         <button type="submit">{editingId ? 'Zapisz zmiany' : 'Dodaj'}</button>
         {editingId && (
           <button type="button" onClick={cancelEdit} style={{ marginLeft: '10px' }}>
@@ -121,7 +145,8 @@ export default function AdminDashboard() {
           <tr>
             <th>Imię i nazwisko</th>
             <th>Email</th>
-            <th>Data</th>
+            <th>Start</th>
+            <th>Koniec</th>
             <th>Akcje</th>
           </tr>
         </thead>
@@ -130,7 +155,8 @@ export default function AdminDashboard() {
             <tr key={res.id}>
               <td>{res.name}</td>
               <td>{res.email}</td>
-              <td>{res.date}</td>
+              <td>{new Date(res.start).toLocaleString()}</td>
+              <td>{new Date(res.koniec).toLocaleString()}</td>
               <td>
                 <button onClick={() => startEdit(res)}>Edytuj</button>{' '}
                 <button onClick={() => handleDelete(res.id)}>Usuń</button>

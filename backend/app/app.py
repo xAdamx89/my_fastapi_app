@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from datetime import datetime
 import psycopg2
+from psycopg2 import sql
 from fastapi.middleware.cors import CORSMiddleware
 from email_utils import send_email
 from dotenv import load_dotenv
@@ -26,61 +28,78 @@ conn = psycopg2.connect(
 )
 cursor = conn.cursor()
 
-class Apointment(BaseModel):
+class AppointmentCreate(BaseModel):
     name: str
     email: str
-    date: str  # YYYY-MM-DD
+    start: datetime
+    koniec: datetime
 
-# GET - pobieranie tylko zajętych dat
 @app.get("/appointments")
 def get_appointments():
-    cursor.execute("SELECT date FROM appointments")
+    cursor.execute("SELECT start, koniec FROM appointments")
     rows = cursor.fetchall()
-    return [{"title": "Spotkanie - termin zajęty", "date": str(row[0])} for row in rows]
+    # Zamień daty na ISO string, żeby FullCalendar mógł je dobrze interpretować
+    return [
+        {
+            "title": "Spotkanie - termin zajęty",
+            "start": row[0].isoformat(),
+            "end": row[1].isoformat()
+        } for row in rows
+    ]
 
-# POST - dodawanie nowej rezerwacji
 @app.post("/appointments")
-def add_appointment(appointment: Apointment):
+def add_appointment(appointment: AppointmentCreate):
+    # Sprawdź kolizję terminów (overlapping)
+    cursor.execute(
+        """
+        SELECT 1 FROM appointments
+        WHERE (start, koniec) OVERLAPS (%s, %s)
+        """,
+        (appointment.start, appointment.koniec)
+    )
+    if cursor.fetchone():
+        raise HTTPException(status_code=400, detail="Termin już zajęty")
+
     try:
         cursor.execute(
-            "INSERT INTO appointments (name, email, date) VALUES (%s, %s, %s)",
-            (appointment.name, appointment.email, appointment.date)
+            "INSERT INTO appointments (name, email, start, koniec) VALUES (%s, %s, %s, %s)",
+            (appointment.name, appointment.email, appointment.start, appointment.koniec)
         )
         conn.commit()
-    except psycopg2.errors.UniqueViolation:
-        conn.rollback()
-        raise HTTPException(status_code=400, detail="Termin już zajęty")
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Próba wysłania maila — nie blokuj dodania rezerwacji, jeśli mail się nie wyśle
+    # Wysyłanie maila (nie blokuj endpointu, jeśli mail się nie wyśle)
     try:
         send_email(
             to_email=appointment.email,
             subject="Potwierdzenie rezerwacji",
-            body=f"Cześć {appointment.name},\n\nTwoja rezerwacja na {appointment.date} została przyjęta.\n\nDziękujemy!"
+            body=f"Cześć {appointment.name},\n\nTwoja rezerwacja od {appointment.start} do {appointment.koniec} została przyjęta.\n\nDziękujemy!"
         )
     except Exception as e:
-        # Możesz zalogować błąd wysyłki maila, ale nie przerywaj działania endpointu
         print(f"Błąd wysyłki e-maila: {e}")
 
     return {"message": "Rezerwacja dodana"}
 
-# GET - wszystkie rezerwacje
 @app.get("/reservations")
 def get_all_reservations():
-    cursor.execute("SELECT id, name, email, date FROM appointments")
+    cursor.execute("SELECT id, name, email, start, koniec FROM appointments")
     rows = cursor.fetchall()
     return [
-        {"id": row[0], "name": row[1], "email": row[2], "date": str(row[3])}
+        {
+            "id": row[0],
+            "name": row[1],
+            "email": row[2],
+            "start": row[3].isoformat(),
+            "koniec": row[4].isoformat()
+        }
         for row in rows
     ]
 
-# DELETE - usuwanie rezerwacji
 @app.delete("/reservations/{reservation_id}")
 def delete_reservation(reservation_id: int):
-    cursor.execute("SELECT name, email, date FROM appointments WHERE id = %s", (reservation_id,))
+    cursor.execute("SELECT name, email, start, koniec FROM appointments WHERE id = %s", (reservation_id,))
     reservation = cursor.fetchone()
 
     if not reservation:
@@ -89,34 +108,50 @@ def delete_reservation(reservation_id: int):
     cursor.execute("DELETE FROM appointments WHERE id = %s", (reservation_id,))
     conn.commit()
 
-    send_email(
-        to_email=reservation[1],
-        subject="Rezerwacja odwołana",
-        body=f"Cześć {reservation[0]},\n\nTwoja rezerwacja na {reservation[2]} została odwołana przez administratora."
-    )
+    try:
+        send_email(
+            to_email=reservation[1],
+            subject="Rezerwacja odwołana",
+            body=f"Cześć {reservation[0]},\n\nTwoja rezerwacja od {reservation[2]} do {reservation[3]} została odwołana przez administratora."
+        )
+    except Exception as e:
+        print(f"Błąd wysyłki e-maila: {e}")
 
     return {"message": "Rezerwacja usunięta"}
 
-# PUT - edycja rezerwacji
 @app.put("/reservations/{reservation_id}")
-def update_reservation(reservation_id: int, appointment: Apointment):
-    cursor.execute("SELECT name, email, date FROM appointments WHERE id = %s", (reservation_id,))
+def update_reservation(reservation_id: int, appointment: AppointmentCreate):
+    cursor.execute("SELECT name, email, start, koniec FROM appointments WHERE id = %s", (reservation_id,))
     old = cursor.fetchone()
 
     if not old:
         raise HTTPException(status_code=404, detail="Rezerwacja nie istnieje")
 
+    # Sprawdź czy nowy termin się nie nakłada na inne rezerwacje (oprócz tej edytowanej)
     cursor.execute(
-        "UPDATE appointments SET name = %s, email = %s, date = %s WHERE id = %s",
-        (appointment.name, appointment.email, appointment.date, reservation_id)
+        """
+        SELECT 1 FROM appointments
+        WHERE id != %s AND (start, koniec) OVERLAPS (%s, %s)
+        """,
+        (reservation_id, appointment.start, appointment.koniec)
+    )
+    if cursor.fetchone():
+        raise HTTPException(status_code=400, detail="Termin już zajęty")
+
+    cursor.execute(
+        "UPDATE appointments SET name = %s, email = %s, start = %s, koniec = %s WHERE id = %s",
+        (appointment.name, appointment.email, appointment.start, appointment.koniec, reservation_id)
     )
     conn.commit()
 
-    send_email(
-        to_email=appointment.email,
-        subject="Rezerwacja zmodyfikowana",
-        body=f"Cześć {appointment.name},\n\nTwoja rezerwacja została zmodyfikowana.\nNowa data: {appointment.date}."
-    )
+    try:
+        send_email(
+            to_email=appointment.email,
+            subject="Rezerwacja zmodyfikowana",
+            body=f"Cześć {appointment.name},\n\nTwoja rezerwacja została zmodyfikowana.\nNowy termin od {appointment.start} do {appointment.koniec}."
+        )
+    except Exception as e:
+        print(f"Błąd wysyłki e-maila: {e}")
 
     return {"message": "Rezerwacja zaktualizowana"}
 
