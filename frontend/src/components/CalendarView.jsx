@@ -60,7 +60,7 @@ export default function CalendarView() {
 
   return (
     <div>
-      <button onClick={() => navigate('/admin')} style={{ marginBottom: '10px' }}>
+      <button onClick={() => navigate('/admin')} style={{ padding: "8px 12px" }}>
         Zaloguj się do panelu administratora
       </button>
       <FullCalendar
