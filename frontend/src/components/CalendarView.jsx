@@ -156,39 +156,49 @@ export default function CalendarView() {
           zIndex: 9999
         }}>
           <form onSubmit={handleSubmit} style={{
-            backgroundColor: 'rgb(53, 49, 49)',
-            padding: '20px',
-            borderRadius: '10px',
-            minWidth: '300px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px'
-          }}>
-            <h3>Rezerwacja terminu</h3>
-            <label>
-              Imię:
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-            </label>
-            <label>
-              Email:
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-              />
-            </label>
-            {error && <div>{error}</div>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button type="button" onClick={() => setSelection(null)}>Anuluj</button>
-              <button type="submit">Zarezerwuj</button>
-            </div>
-          </form>
+              backgroundColor: 'rgb(53, 49, 49)',
+              padding: '20px',
+              borderRadius: '10px',
+              minWidth: '300px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
+              <h3>Rezerwacja terminu</h3>
+              <label>
+                Imię:
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Email:
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </label>
+              <label style={{ textAlign: 'center' }}>
+                Notatka:
+                <textarea
+                  value={formData.note}
+                  onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                  rows="3"
+                  placeholder="Opcjonalna notatka..."
+                  style={{ width: '100%' }}
+                />
+              </label>
+              {error && <div>{error}</div>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button type="button" onClick={() => setSelection(null)}>Anuluj</button>
+                <button type="submit">Zarezerwuj</button>
+              </div>
+            </form>
         </div>
       )}
     </div>

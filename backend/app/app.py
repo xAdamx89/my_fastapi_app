@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from email_utils import send_email
 from dotenv import load_dotenv
 import os
+from typing import Optional
 
 load_dotenv()
 app = FastAPI()
@@ -28,11 +29,15 @@ conn = psycopg2.connect(
 )
 cursor = conn.cursor()
 
+from typing import Optional
+
 class AppointmentCreate(BaseModel):
     name: str
     email: str
     start: datetime
     koniec: datetime
+    allDay: bool
+    note: Optional[str] = None
 
 @app.get("/appointments")
 def get_appointments():
@@ -62,15 +67,16 @@ def add_appointment(appointment: AppointmentCreate):
 
     try:
         cursor.execute(
-            "INSERT INTO appointments (name, email, start, koniec) VALUES (%s, %s, %s, %s)",
-            (appointment.name, appointment.email, appointment.start, appointment.koniec)
+        "INSERT INTO appointments (name, email, start, koniec, note, allday) VALUES (%s, %s, %s, %s, %s, %s)",
+        (appointment.name, appointment.email, appointment.start, appointment.koniec, appointment.note, appointment.allDay)
         )
         conn.commit()
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-    # Wysyłanie maila (nie blokuj endpointu, jeśli mail się nie wyśle)
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Błąd serwera: {e}")
+        # Wysyłanie maila (nie blokuj endpointu, jeśli mail się nie wyśle)
     try:
         send_email(
             to_email=appointment.email,
@@ -84,15 +90,16 @@ def add_appointment(appointment: AppointmentCreate):
 
 @app.get("/reservations")
 def get_all_reservations():
-    cursor.execute("SELECT id, name, email, start, koniec FROM appointments")
+    cursor.execute("SELECT id, name, email, start, koniec, note FROM appointments")
     rows = cursor.fetchall()
     return [
         {
             "id": row[0],
             "name": row[1],
             "email": row[2],
-            "start": row[3].isoformat(),
-            "koniec": row[4].isoformat()
+            "start": str(row[3]),
+            "koniec": str(row[4]),
+            "note": row[5],
         }
         for row in rows
     ]
@@ -139,10 +146,9 @@ def update_reservation(reservation_id: int, appointment: AppointmentCreate):
         raise HTTPException(status_code=400, detail="Termin już zajęty")
 
     cursor.execute(
-        "UPDATE appointments SET name = %s, email = %s, start = %s, koniec = %s WHERE id = %s",
-        (appointment.name, appointment.email, appointment.start, appointment.koniec, reservation_id)
-    )
-    conn.commit()
+    "UPDATE appointments SET name = %s, email = %s, start = %s, koniec = %s, note = %s WHERE id = %s",
+    (appointment.name, appointment.email, appointment.start, appointment.koniec, appointment.note, reservation_id)
+    ).commit()
 
     try:
         send_email(

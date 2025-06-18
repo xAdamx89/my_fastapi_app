@@ -9,10 +9,10 @@ export default function AdminDashboard() {
     email: '',
     start: '',
     koniec: '',
+    note: '',
   });
-  const [editingId, setEditingId] = useState(null); // ID aktualnie edytowanej rezerwacji
+  const [editingId, setEditingId] = useState(null);
 
-  // Pobranie rezerwacji
   const fetchReservations = () => {
     fetch('http://localhost:8000/reservations')
       .then((res) => res.json())
@@ -24,7 +24,6 @@ export default function AdminDashboard() {
     fetchReservations();
   }, []);
 
-  // Usuwanie
   const handleDelete = (id) => {
     fetch(`http://localhost:8000/reservations/${id}`, {
       method: 'DELETE',
@@ -33,40 +32,33 @@ export default function AdminDashboard() {
       .catch((err) => console.error('Błąd usuwania:', err));
   };
 
-  // Dodawanie lub edycja
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (editingId) {
-      // Edytowanie istniejącej rezerwacji
-      fetch(`http://localhost:8000/reservations/${editingId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+    const payload = {
+      ...formData,
+      allDay: false, // lub true, jeśli potrzebujesz — dopóki nie ma inputu, ustaw ręcznie
+    };
+
+    const url = editingId
+      ? `http://localhost:8000/reservations/${editingId}`
+      : 'http://localhost:8000/appointments';
+    const method = editingId ? 'PUT' : 'POST';
+
+    fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        fetchReservations();
+        setEditingId(null);
+        setFormData({ name: '', email: '', start: '', koniec: '', note: '' });
       })
-        .then(() => {
-          fetchReservations();
-          setEditingId(null);
-          setFormData({ name: '', email: '', start: '', koniec: '' });
-        })
-        .catch((err) => console.error('Błąd edycji:', err));
-    } else {
-      // Dodawanie nowej rezerwacji
-      fetch('http://localhost:8000/appointments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
-        .then((res) => res.json())
-        .then(() => {
-          fetchReservations();
-          setFormData({ name: '', email: '', start: '', koniec: '' });
-        })
-        .catch((err) => console.error('Błąd dodawania:', err));
-    }
+      .catch((err) => console.error('Błąd dodawania/edycji:', err));
   };
 
-  // Rozbierz ISO datetime na format akceptowany przez input[type=datetime-local]
   const toLocalDateTime = (isoString) => {
     if (!isoString) return '';
     const dt = new Date(isoString);
@@ -75,7 +67,6 @@ export default function AdminDashboard() {
     return localDate.toISOString().slice(0, 16);
   };
 
-  // Start edycji - wypełnij formę z przekształceniem dat
   const startEdit = (res) => {
     setEditingId(res.id);
     setFormData({
@@ -83,12 +74,13 @@ export default function AdminDashboard() {
       email: res.email,
       start: toLocalDateTime(res.start),
       koniec: toLocalDateTime(res.koniec),
+      note: res.note || '',
     });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setFormData({ name: '', email: '', start: '', koniec: '' });
+    setFormData({ name: '', email: '', start: '', koniec: '', note: '' });
   };
 
   return (
@@ -131,6 +123,13 @@ export default function AdminDashboard() {
             required
           />
         </label>
+        <input
+         style={{position: "relative", top: "4px", marginBottom: "10px"}}
+          type="text"
+          placeholder="Notatka"
+          value={formData.note}
+          onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+        />
         <button type="submit">{editingId ? 'Zapisz zmiany' : 'Dodaj'}</button>
         {editingId && (
           <button type="button" onClick={cancelEdit} style={{ marginLeft: '10px' }}>
@@ -147,6 +146,7 @@ export default function AdminDashboard() {
             <th>Email</th>
             <th>Start</th>
             <th>Koniec</th>
+            <th>Notatka</th>
             <th>Akcje</th>
           </tr>
         </thead>
@@ -157,6 +157,7 @@ export default function AdminDashboard() {
               <td>{res.email}</td>
               <td>{new Date(res.start).toLocaleString()}</td>
               <td>{new Date(res.koniec).toLocaleString()}</td>
+              <td>{res.note || '-'}</td>
               <td>
                 <button onClick={() => startEdit(res)}>Edytuj</button>{' '}
                 <button onClick={() => handleDelete(res.id)}>Usuń</button>
