@@ -85,7 +85,7 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ padding: '20px' }}>
-      <button onClick={() => navigate('/')}>Powróć do kalendarza</button>
+      <button onClick={() => navigate('/calendar')}>Powróć do kalendarza</button>
 
       <h1>Dashboard administratora</h1>
 
