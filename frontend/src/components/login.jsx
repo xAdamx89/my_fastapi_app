@@ -47,6 +47,9 @@ export default function Login() {
   return (
     <div className="container">
         <div className="column">
+            <button type="button" className="login-button" onClick={() => navigate("/rejestracja")}>
+            Zarejestruj się
+            </button>
         </div>
 
         <div className="column center-column">

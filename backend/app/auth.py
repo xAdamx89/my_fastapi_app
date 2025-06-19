@@ -4,6 +4,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from pydantic import BaseModel
+from psycopg2 import sql
+from app import cursor, pwd_context
 
 auth_router = APIRouter()
 
@@ -16,12 +18,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 
-# Tymczasowy użytkownik (zastąp bazą danych)
-FAKE_ADMIN = {
-    "username": "admin",
-    "hashed_password": pwd_context.hash("admin123")
-}
-
 class User(BaseModel):
     username: str
 
@@ -33,11 +29,20 @@ def verify_password(plain, hashed):
     return pwd_context.verify(plain, hashed)
 
 def authenticate_user(username: str, password: str):
-    if username != FAKE_ADMIN["username"]:
+    try:
+        cursor.execute("SELECT id, hashed_password FROM users WHERE username = %s", (username,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        user_id, hashed_password = row
+        if not verify_password(password, hashed_password):
+            return False
+
+        return User(username=username)
+    except Exception as e:
+        print("Błąd przy logowaniu:", e)
         return False
-    if not verify_password(password, FAKE_ADMIN["hashed_password"]):
-        return False
-    return User(username=username)
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
@@ -54,8 +59,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        if username != FAKE_ADMIN["username"]:
+        if username is None:
             raise credentials_exception
+        
+        # Możesz dodać sprawdzanie użytkownika w bazie
+        cursor.execute("SELECT username FROM users WHERE username = %s", (username,))
+        if not cursor.fetchone():
+            raise credentials_exception
+
         return User(username=username)
     except JWTError:
         raise credentials_exception

@@ -8,6 +8,7 @@ from email_utils import send_email
 from dotenv import load_dotenv
 import os
 from typing import Optional
+from auth import auth_router
 
 load_dotenv()
 app = FastAPI()
@@ -164,3 +165,24 @@ def update_reservation(reservation_id: int, appointment: AppointmentCreate):
 @app.get("/")
 def root():
     return {"message": "API działa"}
+
+
+@app.post("/register")
+def register(user: UserCreate):
+    # Sprawdź czy użytkownik już istnieje
+    cursor.execute("SELECT 1 FROM users WHERE username = %s OR email = %s", (user.username, user.email))
+    if cursor.fetchone():
+        raise HTTPException(status_code=400, detail="Użytkownik o podanym loginie lub e-mailu już istnieje")
+
+    hashed_password = pwd_context.hash(user.password)
+
+    try:
+        cursor.execute(
+            "INSERT INTO users (username, email, hashed_password) VALUES (%s, %s, %s)",
+            (user.username, user.email, hashed_password)
+        )
+        conn.commit()
+        return {"message": "Użytkownik zarejestrowany"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Błąd serwera: {e}")

@@ -22,7 +22,7 @@ export default function AdminPanel() {
   return (
     <div className="container">
       <div className="column">
-        <button className="to-left" onClick={() => navigate('/')}>
+        <button className="to-left" onClick={() => navigate('/calendar')}>
           Powróć do kalendarza
         </button>
       </div>

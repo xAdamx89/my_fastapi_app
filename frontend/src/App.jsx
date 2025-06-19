@@ -6,6 +6,7 @@ import CalendarView from './components/CalendarView'; // zakładam, że masz
 import AdminPanel from './components/AdminPanel';
 import AdminDashboard from './components/AdminDashboard';
 import Login from './components/Login';
+import Rejestracja from './components/Rejestracja';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="/calendar" element={<CalendarView />} />
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/rejestracja" element={<Rejestracja />} />
       </Routes>
     </BrowserRouter>
   );
