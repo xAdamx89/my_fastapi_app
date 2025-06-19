@@ -9,22 +9,25 @@ import { useNavigate } from 'react-router-dom';
 export default function CalendarView() {
   const [events, setEvents] = useState([]);
   const [selection, setSelection] = useState(null);
-  const [formData, setFormData] = useState({ name: '', email: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', note: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    axios.get('http://localhost:8000/appointments')
-      .then(res => {
-        const formattedEvents = res.data.map(event => ({
-          title: 'Spotkanie - termin zajęty',
-          start: event.start,
-          end: event.koniec,
-          allDay: false,
-        }));
-        setEvents(formattedEvents);
-      })
-      .catch(err => console.error('Błąd podczas pobierania danych:', err));
+  axios.get('http://localhost:8000/appointments')
+    .then(res => {
+      const formattedEvents = res.data.map(event => ({
+        title: 'Spotkanie - termin zajęty',
+        start: event.start,
+        end: event.koniec,
+        allDay: false,
+        extendedProps: {
+          note: event.note || '',
+        },
+      }));
+      setEvents(formattedEvents);
+    })
+    .catch(err => console.error('Błąd podczas pobierania danych:', err));
   }, []);
 
   const isWeekend = (date) => {
@@ -88,19 +91,23 @@ export default function CalendarView() {
       start: start.toISOString(),
       koniec: end.toISOString(),
       allDay: false,
+      note: formData.note,
     })
       .then(() => {
-        setEvents(prevEvents => [
-          ...prevEvents,
-          {
-            title: 'Spotkanie - termin zajęty',
-            start: start.toISOString(),
-            end: end.toISOString(),
-            allDay: false,
+      setEvents(prevEvents => [
+        ...prevEvents,
+        {
+          title: 'Spotkanie - termin zajęty',
+          start: start.toISOString(),
+          end: end.toISOString(),
+          allDay: false,
+          extendedProps: {
+            note: formData.note || '',
           }
-        ]);
-        setSelection(null);
-        setError('');
+        }
+      ]);
+      setSelection(null);
+      setError('');
       })
       .catch(error => {
         if (error.response?.status === 400) {
@@ -119,31 +126,69 @@ export default function CalendarView() {
       </button>
 
       <FullCalendar
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="dayGridMonth"
-        selectable={true}
-        selectMirror={true}
-        selectLongPressDelay={1}
-        select={handleSelect}
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,timeGridWeek,timeGridDay',
-        }}
-        events={events}
-        height="auto"
-        validRange={{
-          start: new Date().toISOString().slice(0, 10),
-        }}
-        businessHours={{
-          daysOfWeek: [1, 2, 3, 4, 5],
-          startTime: '08:00',
-          endTime: '16:00',
-        }}
-        allDaySlot={false}
-        slotMinTime="08:00:00"
-        slotMaxTime="16:00:00"
-      />
+      eventMouseEnter={info => {
+        const note = info.event.extendedProps.note;
+        if (!note) return;
+
+        // Tworzymy tooltip
+        const tooltip = document.createElement('div');
+        tooltip.id = 'custom-tooltip';
+        tooltip.style.position = 'absolute';
+        tooltip.style.background = 'rgba(0,0,0,0.75)';
+        tooltip.style.color = 'white';
+        tooltip.style.padding = '5px 10px';
+        tooltip.style.borderRadius = '4px';
+        tooltip.style.zIndex = 10000;
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.whiteSpace = 'pre-wrap';
+        tooltip.innerText = note;
+
+        document.body.appendChild(tooltip);
+
+        // Funkcja do przesuwania tooltipa pod kursorem
+        const moveTooltip = (e) => {
+          tooltip.style.top = e.pageY + 10 + 'px';
+          tooltip.style.left = e.pageX + 10 + 'px';
+        };
+
+        // Ustaw początkową pozycję tooltipa
+        moveTooltip(info.jsEvent);
+
+        // Nasłuchujemy ruchu myszy, aby przesuwać tooltip
+        info.el.addEventListener('mousemove', moveTooltip);
+
+        // Po opuszczeniu eventu usuwamy tooltip i listener
+        info.el.addEventListener('mouseleave', () => {
+          tooltip.remove();
+          info.el.removeEventListener('mousemove', moveTooltip);
+        }, { once: true });
+      }}
+
+      plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+      initialView="dayGridMonth"
+      selectable={true}
+      selectMirror={true}
+      selectLongPressDelay={1}
+      select={handleSelect}
+      headerToolbar={{
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,timeGridWeek,timeGridDay',
+      }}
+      events={events}
+      height="auto"
+      validRange={{
+        start: new Date().toISOString().slice(0, 10),
+      }}
+      businessHours={{
+        daysOfWeek: [1, 2, 3, 4, 5],
+        startTime: '08:00',
+        endTime: '16:00',
+      }}
+      allDaySlot={false}
+      slotMinTime="08:00:00"
+      slotMaxTime="16:00:00"
+    />
 
       {selection && (
         <div style={{
