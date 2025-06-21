@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import './AdminPanel.css'; // opcjonalnie styl z logowania
+import './AdminPanel.css';
 
 export default function Rejestracja() {
   const navigate = useNavigate();
 
   const [login, setLogin] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -27,7 +28,7 @@ export default function Rejestracja() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username: login, password }),
+        body: JSON.stringify({ username: login, email, password }),
       });
 
       if (!response.ok) {
@@ -36,7 +37,7 @@ export default function Rejestracja() {
       }
 
       setSuccess("Rejestracja zakończona sukcesem!");
-      setTimeout(() => navigate("/"), 1500); // przekierowanie po 1.5s
+      setTimeout(() => navigate("/"), 1500);
     } catch (err) {
       setError(err.message);
     }
@@ -60,6 +61,15 @@ export default function Rejestracja() {
                 placeholder="Login"
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
+                required
+              />
+            </div>
+            <div className="input-group">
+              <input
+                type="email"
+                placeholder="E-mail"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>

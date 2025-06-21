@@ -1,17 +1,33 @@
-@echo off   
+@echo off
+setlocal
 
-::Aktywacja środowiska python
+:: Aktywacja środowiska virtualenv
+echo Aktywacja środowiska Python...
 call venv\Scripts\activate.bat
+if errorlevel 1 (
+    echo Błąd: Nie można aktywować środowiska wirtualnego.
+    pause
+    exit /b 1
+)
 
-::backend
-cd backend\app
-start /b uvicorn app:app --reload
+:: Uruchomienie backendu
+echo Uruchamianie backendu...
+cd backend/app/
+start "Backend (FastAPI)" uvicorn backend_app:app --reload
 
+:: Powrót do katalogu głównego
 cd ..\..
 
-::frontend
+:: Uruchomienie frontend (React)
+echo Uruchamianie frontend...
 cd frontend
-start /b npm run dev
+start "Frontend (React)" /b npm run dev
 
-echo Serwery uruchomione. Naciśnij dowolny klawisz, aby zakończyć...
+:: Informacja dla użytkownika
+echo -----------------------------------------------
+echo Serwery uruchomione.
+echo Backend: http://127.0.0.1:8000/docs
+echo Frontend: http://localhost:5173
+echo -----------------------------------------------
+echo Naciśnij dowolny klawisz, aby zakończyć okno...
 pause >nul

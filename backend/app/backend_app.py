@@ -1,17 +1,32 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
-import psycopg2
-from psycopg2 import sql
 from fastapi.middleware.cors import CORSMiddleware
 from email_utils import send_email
 from dotenv import load_dotenv
 import os
 from typing import Optional
+
 from auth import auth_router
+from db import cursor, conn, pwd_context
+
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+    
+class AppointmentCreate(BaseModel):
+    name: str
+    email: str
+    start: datetime
+    koniec: datetime
+    allDay: bool
+    note: Optional[str] = None
 
 load_dotenv()
 app = FastAPI()
+
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,25 +35,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-conn = psycopg2.connect(
-    dbname="rezerwacje",
-    user="postgres",
-    password="9089",
-    host="localhost",
-    port="5432"
-)
-cursor = conn.cursor()
-
-from typing import Optional
-
-class AppointmentCreate(BaseModel):
-    name: str
-    email: str
-    start: datetime
-    koniec: datetime
-    allDay: bool
-    note: Optional[str] = None
 
 @app.get("/appointments")
 def get_appointments():
@@ -147,9 +143,10 @@ def update_reservation(reservation_id: int, appointment: AppointmentCreate):
         raise HTTPException(status_code=400, detail="Termin już zajęty")
 
     cursor.execute(
-    "UPDATE appointments SET name = %s, email = %s, start = %s, koniec = %s, note = %s WHERE id = %s",
-    (appointment.name, appointment.email, appointment.start, appointment.koniec, appointment.note, reservation_id)
-    ).commit()
+        "UPDATE appointments SET name = %s, email = %s, start = %s, koniec = %s, note = %s WHERE id = %s",
+        (appointment.name, appointment.email, appointment.start, appointment.koniec, appointment.note, reservation_id)
+    )
+    conn.commit()
 
     try:
         send_email(

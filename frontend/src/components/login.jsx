@@ -38,7 +38,7 @@ export default function Login() {
 
         const data = await response.json();
         localStorage.setItem("access_token", data.access_token);
-        navigate("/admin/dashboard");
+        navigate("/calendar");
     } catch (err) {
         setError(err.message);
     }

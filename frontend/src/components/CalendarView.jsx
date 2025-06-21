@@ -121,6 +121,9 @@ export default function CalendarView() {
 
   return (
     <div>
+      <button onClick={() => navigate('/')} style={{ padding: "8px 12px" }}>
+        Wyloguj się
+      </button>
       <button onClick={() => navigate('/admin')} style={{ padding: "8px 12px" }}>
         Zaloguj się do panelu administratora
       </button>
