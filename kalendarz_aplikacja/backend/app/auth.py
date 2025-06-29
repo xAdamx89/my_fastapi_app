@@ -1,115 +1,104 @@
-from fastapi import APIRouter, HTTPException, status, Depends
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from app import models, schemas, database
+from passlib.context import CryptContext
+
+from fastapi import APIRouter, Depends, HTTPException, status, Form
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+from app import models, database
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
-from pydantic import BaseModel
-from psycopg2 import sql
-from .db import cursor, pwd_context
-import os
-from dotenv import load_dotenv
-from pydantic import BaseModel, EmailStr
+import jwt  # PyJWT
 
-load_dotenv()
+from fastapi import APIRouter, HTTPException, Depends, status
+from sqlalchemy.orm import Session
+from app import models, database
+from passlib.context import CryptContext
+from pydantic import BaseModel, constr
 
-auth_router = APIRouter()
+SECRET_KEY = "twoj_super_tajny_klucz"  # Trzymaj w env!
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-SECRET_KEY = os.getenv("SECRET_KEY", "tajny_klucz")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+router = APIRouter()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
-# Modele Pydantic
+@router.post("/register")
+def register_user(user: schemas.RegisterUser, db: Session = Depends(database.get_db)):
+    # Sprawdzenie, czy użytkownik istnieje (login lub email)
+    existing_user = db.query(models.User).filter(
+        (models.User.username == user.username) | (models.User.email == user.email)
+    ).first()
 
-class PasswordReset(BaseModel):
-    username: str
-    new_password: str
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Użytkownik o takim loginie lub adresie e-mail już istnieje.")
 
-class User(BaseModel):
-    username: str
+    hashed_password = hash_password(user.password)
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
+    new_user = models.User(
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        hashed_password=hashed_password,
+        is_active=True,
+        is_superuser=False,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
-class UserCreate(BaseModel):
-    username: str
-    password: str
-    email: str | None = None
-    full_name: str | None = None
-
-# Funkcje pomocnicze
+    return {"message": "Rejestracja zakończona sukcesem"}
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-def authenticate_user(username: str, password: str):
-    try:
-        cursor.execute("SELECT id, hashed_password FROM users WHERE username = %s", (username,))
-        row = cursor.fetchone()
-        if not row:
-            return False
-
-        user_id, hashed_password = row
-        if not verify_password(password, hashed_password):
-            return False
-
-        return User(username=username)
-    except Exception as e:
-        print("Błąd przy logowaniu:", e)
+def authenticate_user(db: Session, username: str, password: str):
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
         return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# Endpointy
-
-@auth_router.post("/token", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+@router.post("/token")
+def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(database.get_db)
+):
+    user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
-        raise HTTPException(status_code=401, detail="Nieprawidłowe dane logowania")
-    
-    access_token = create_access_token(
-        data={"sub": user.username},
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Nieprawidłowy login lub hasło",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@auth_router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register(user: UserCreate):
-    try:
-        # ... kod rejestracji ...
-        cursor.connection.commit()
-        return {"msg": "Użytkownik zarejestrowany"}
-    except Exception as e:
-        print("Błąd przy rejestracji:", e)
-        raise HTTPException(status_code=500, detail="Błąd serwera")
+class PassResetRequest(BaseModel):
+    username: constr(min_length=1)
+    new_password: constr(min_length=1)
 
-# To musi być poza funkcją register:
-@auth_router.post("/pass_reset")
-async def reset_password(data: PasswordReset):
-    try:
-        cursor.execute("SELECT id FROM users WHERE username = %s", (data.username,))
-        user = cursor.fetchone()
-        if not user:
-            raise HTTPException(status_code=404, detail="Użytkownik nie znaleziony")
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
-        hashed_password = pwd_context.hash(data.new_password)
+@router.post("/pass_reset")
+def reset_password(data: PassResetRequest, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.username == data.username).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Użytkownik nie istnieje")
 
-        cursor.execute(
-            "UPDATE users SET hashed_password = %s WHERE username = %s",
-            (hashed_password, data.username)
-        )
-        cursor.connection.commit()
-
-        return {"msg": "Hasło zostało zresetowane"}
-
-    except Exception as e:
-        print("Błąd przy resetowaniu hasła:", e)
-        raise HTTPException(status_code=500, detail="Błąd serwera")
+    user.hashed_password = hash_password(data.new_password)
+    db.commit()
+    return {"message": "Hasło zostało zresetowane pomyślnie."}

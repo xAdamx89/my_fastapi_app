@@ -28,7 +28,7 @@ export default function Rejestracja() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username: login, email, password }),
+        body: JSON.stringify({ username: login, email, password, full_name: "" }),
       });
 
       if (!response.ok) {
@@ -67,7 +67,7 @@ export default function Rejestracja() {
             <div className="input-group">
               <input
                 type="email"
-                placeholder="E-mail"
+                placeholder="np adam@adam.pl"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
