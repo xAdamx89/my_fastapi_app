@@ -1,0 +1,49 @@
+/* src/components/AdminPanel.css */
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+.container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+}
+
+.column {
+  flex: 1;
+  width: 510px;
+}
+
+.center-column {
+  flex: 2;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.to-left {
+  position: absolute;
+  padding: 8px 12px;
+}
+
+.centered {
+  width: 100%;
+  max-width: 400px;
+  padding: 30px;
+  border-radius: 8px;
+}
+
+.input-group {
+  margin-bottom: 15px;
+}
+
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+  border-radius: 4px;
+}
